@@ -2,17 +2,16 @@ extern crate blake3;
 extern crate clap;
 extern crate memmap;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{App, Arg, SubCommand};
 use memmap::MmapOptions;
 use std::fs::File;
 use std::time::Instant;
 
-mod rolling_hash;
-use rolling_hash::RollingHash;
+mod hash;
+use hash::RollingHash;
 
 mod patchy;
-use patchy::{Block, Hash128};
 
 fn size_mb(size: usize) -> f64 {
 	let mb = (1 << 20) as f64;
@@ -20,8 +19,12 @@ fn size_mb(size: usize) -> f64 {
 }
 
 fn hash_file(filename: &str) -> Result<()> {
-	let file = File::open(filename)?;
-	let mmap = unsafe { MmapOptions::new().map(&file)? };
+	let file = File::open(filename).context("Can't open input file")?;
+	let mmap = unsafe {
+		MmapOptions::new()
+			.map(&file)
+			.context("Can't memory map input file")?
+	};
 	println!("File size {}", mmap.len());
 
 	let time_begin_blake3 = Instant::now();
@@ -41,7 +44,6 @@ fn hash_file(filename: &str) -> Result<()> {
 	let mut hash_rolling = RollingHash::new();
 	hash_rolling.update(&mmap);
 	let duration_rolling = Instant::now() - time_begin_rolling;
-	
 	println!(
 		"Finished in {} sec, {} MB/sec",
 		duration_rolling.as_secs_f32(),
@@ -50,7 +52,7 @@ fn hash_file(filename: &str) -> Result<()> {
 	println!("Hash rolling: {}", hash_rolling.get());
 
 	let time_begin_blocks = Instant::now();
-	let blocks = patchy::compute_blocks(&mmap, 16384);
+	let blocks = patchy::compute_blocks(&mmap, patchy::DEFAULT_BLOCK_SIZE);
 	let duration_blocks = Instant::now() - time_begin_blocks;
 	println!(
 		"Finished computing blocks in {} sec, {} MB/sec",
@@ -71,6 +73,34 @@ fn hash_file(filename: &str) -> Result<()> {
 	Ok(())
 }
 
+fn diff_files(base_filename: &str, other_filename: &str) -> Result<()> {
+	let base_file = File::open(base_filename).context("Can't open BASE input file")?;
+	let base_mmap = unsafe {
+		MmapOptions::new()
+			.map(&base_file)
+			.context("Can't memory map input file")?
+	};
+	println!("Base size {} MB", size_mb(base_mmap.len()));
+
+	let other_file = File::open(other_filename).context("Can't open OTHER input file")?;
+	let other_mmap = unsafe {
+		MmapOptions::new()
+			.map(&other_file)
+			.context("Can't memory map input file")?
+	};
+	println!("Other size {} MB", size_mb(other_mmap.len()));
+
+	println!("Computing blocks for '{}'", other_filename);
+	let other_blocks = patchy::compute_blocks(&other_mmap, patchy::DEFAULT_BLOCK_SIZE);
+
+	println!("Computing diff");
+	let diff_size = patchy::compute_diff(&base_mmap, &other_blocks, patchy::DEFAULT_BLOCK_SIZE);
+
+	println!("Diff size {} MB", size_mb(diff_size));
+
+	Ok(())
+}
+
 fn main() {
 	let matches = App::new("Patchy")
 		.version("0.0.1")
@@ -85,6 +115,22 @@ fn main() {
 						.help("Input file"),
 				),
 		)
+		.subcommand(
+			SubCommand::with_name("diff")
+				.about("Computes binary difference between files")
+				.arg(
+					Arg::with_name("BASE")
+						.index(1)
+						.required(true)
+						.help("Base file"),
+				)
+				.arg(
+					Arg::with_name("OTHER")
+						.index(2)
+						.required(true)
+						.help("Other file"),
+				),
+		)
 		.get_matches();
 
 	if let Some(matches) = matches.subcommand_matches("hash") {
@@ -92,7 +138,17 @@ fn main() {
 		println!("Hashing '{}'", input);
 		match hash_file(input) {
 			Ok(_) => println!("Success"),
-			Err(_) => println!("Failed"),
+			Err(e) => println!("Failed: {:?}", e),
+		}
+	}
+
+	if let Some(matches) = matches.subcommand_matches("diff") {
+		let base = matches.value_of("BASE").unwrap();
+		let other = matches.value_of("OTHER").unwrap();
+		println!("Diffing '{}' and '{}'", base, other);
+		match diff_files(base, other) {
+			Ok(_) => println!("Success"),
+			Err(e) => println!("Failed: {:?}", e),
 		}
 	}
 }
