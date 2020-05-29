@@ -1,0 +1,13 @@
+[package]
+name = "patchy"
+version = "0.0.1"
+authors = ["Yuriy O'Donnell <yuriyo@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0.31"
+blake3 = "0.3.4"
+clap = "2.33.1"
+log = "0.4.8"
+memmap = "0.7.0"
+rayon = "1.1"
