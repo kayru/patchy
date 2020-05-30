@@ -1,7 +1,3 @@
-extern crate blake3;
-extern crate clap;
-extern crate memmap;
-
 use anyhow::{Context, Result};
 use clap::{App, Arg, SubCommand};
 use memmap::MmapOptions;
@@ -9,7 +5,7 @@ use std::fs::File;
 use std::time::Instant;
 
 mod hash;
-use hash::{RollingHash, compute_hash_strong};
+use hash::{compute_hash_strong, RollingHash};
 
 mod patchy;
 
@@ -80,7 +76,11 @@ fn diff_files(base_filename: &str, other_filename: &str) -> Result<()> {
 			.map(&base_file)
 			.context("Can't memory map input file")?
 	};
-	println!("Base size {} MB", size_mb(base_mmap.len()));
+	println!(
+		"Base size {:.2} MB ({} bytes)",
+		size_mb(base_mmap.len()),
+		base_mmap.len()
+	);
 
 	let other_file = File::open(other_filename).context("Can't open OTHER input file")?;
 	let other_mmap = unsafe {
@@ -88,25 +88,55 @@ fn diff_files(base_filename: &str, other_filename: &str) -> Result<()> {
 			.map(&other_file)
 			.context("Can't memory map input file")?
 	};
-	println!("Other size {} MB", size_mb(other_mmap.len()));
+	println!(
+		"Other size {:.2} MB ({} bytes)",
+		size_mb(other_mmap.len()),
+		other_mmap.len()
+	);
 
-	println!("Computing blocks for '{}'", other_filename);
+	println!("Using block size {}", patchy::DEFAULT_BLOCK_SIZE);
+
+	println!("Computing blocks hashes for '{}'", other_filename);
 	let other_blocks = patchy::compute_blocks(&other_mmap, patchy::DEFAULT_BLOCK_SIZE);
 
 	println!("Computing diff");
-	let patch_commands = patchy::compute_diff(&base_mmap, &other_blocks, patchy::DEFAULT_BLOCK_SIZE);
+	let patch_commands =
+		patchy::compute_diff(&base_mmap, &other_blocks, patchy::DEFAULT_BLOCK_SIZE);
 
-	println!("Diff size {} MB", size_mb(patch_commands.need_bytes_from_other()));
-	println!("Blocks from BASE: {}, from OTHER: {}", patch_commands.base.len(), patch_commands.other.len());
+	println!(
+		"Diff size {:.2} MB",
+		size_mb(patch_commands.need_bytes_from_other())
+	);
+
+	println!(
+		"Need from BASE: {:.2} MB ({} blocks), from OTHER: {:.2} MB ({} blocks)",
+		size_mb(patch_commands.need_bytes_from_base()),
+		patch_commands.base.len(),
+		size_mb(patch_commands.need_bytes_from_other()),
+		patch_commands.other.len()
+	);
+
+	let patch = patchy::build_patch(&other_mmap, &patch_commands);
+	println!("Patch commands: {}", patch.base.len() + patch.other.len());
 
 	println!("Verifying patch");
-	let patch = patchy::build_patch(&other_mmap, &patch_commands);
 	let patched_base = patchy::apply_patch(&base_mmap, &patch);
 	assert_eq!(patched_base.len(), other_mmap.len());
 
 	let other_hash = compute_hash_strong(&other_mmap);
 	let patched_base_hash = compute_hash_strong(&patched_base);
 	assert_eq!(other_hash, patched_base_hash);
+	drop(patched_base);
+
+	println!("Serializing patch");
+	let patch_serialized: Vec<u8> = bincode::serialize(&patch)?;
+	println!(
+		"Serialized uncompressed size: {:.2} MB",
+		size_mb(patch_serialized.len())
+	);
+	println!("Compressing patch");
+	let patch_compressed: Vec<u8> = zstd::block::compress(&patch_serialized, 19)?;
+	println!("Compressed size: {:.2} MB", size_mb(patch_compressed.len()));
 
 	Ok(())
 }
