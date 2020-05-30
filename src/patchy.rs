@@ -69,6 +69,22 @@ impl PatchCommands {
 	pub fn need_bytes_from_other(&self) -> usize {
 		compute_copy_size(&self.other)
 	}
+	pub fn is_synchronized(&self) -> bool {
+		self.base.is_empty() && self.other.is_empty()
+	}
+}
+
+fn is_synchronized(sequence: &Vec<Hash128>, blocks: &Vec<Block>) -> bool {	
+	if sequence.len() != blocks.len() {
+		return false;
+	}
+	for it in sequence.iter().zip(blocks.iter()){
+		if *it.0 != it.1.hash_strong {
+			return false;
+		}
+	}
+	
+	true
 }
 
 pub fn compute_diff(input: &[u8], other_blocks: &Vec<Block>, block_size: usize) -> PatchCommands {
@@ -99,6 +115,8 @@ pub fn compute_diff(input: &[u8], other_blocks: &Vec<Block>, block_size: usize) 
 	let mut rolling_hash = RollingHash::new();
 	let mut window_begin: usize = 0;
 	let mut window_end: usize = window_begin;
+	let mut sequence: Vec<Hash128> = Vec::new();
+	sequence.reserve(div_up(input.len(), block_size));
 	loop {
 		let remaining_len = input.len() - window_begin;
 		if remaining_len == 0 {
@@ -115,6 +133,7 @@ pub fn compute_diff(input: &[u8], other_blocks: &Vec<Block>, block_size: usize) 
 				window_end = window_begin;
 				rolling_hash = RollingHash::new();
 				base_block_hash_map.insert(base_block.hash_strong, base_block.offset);
+				sequence.push(base_block.hash_strong);
 			}
 			None => {
 				rolling_hash.sub(input[window_begin]);
@@ -123,21 +142,23 @@ pub fn compute_diff(input: &[u8], other_blocks: &Vec<Block>, block_size: usize) 
 		}
 	}
 	let mut patch_commands = PatchCommands::new();
-	for other_block in other_blocks {
-		match base_block_hash_map.get(&other_block.hash_strong) {
-			Some(&base_offset) => {
-				patch_commands.base.push(CopyCmd {
-					source: base_offset,
-					target: other_block.offset,
-					size: other_block.size,
-				});
-			}
-			None => {
-				patch_commands.other.push(CopyCmd {
-					source: other_block.offset,
-					target: other_block.offset,
-					size: other_block.size,
-				});
+	if !is_synchronized(&sequence, &other_blocks) {
+		for other_block in other_blocks {
+			match base_block_hash_map.get(&other_block.hash_strong) {
+				Some(&base_offset) => {
+					patch_commands.base.push(CopyCmd {
+						source: base_offset,
+						target: other_block.offset,
+						size: other_block.size,
+					});
+				}
+				None => {
+					patch_commands.other.push(CopyCmd {
+						source: other_block.offset,
+						target: other_block.offset,
+						size: other_block.size,
+					});
+				}
 			}
 		}
 	}
@@ -153,10 +174,10 @@ pub struct Patch {
 }
 
 fn optimize_copy_cmds(cmds: &mut Vec<CopyCmd>) {
-	cmds.sort_by_key(|v| v.target);
-	let mut prev: Option<&mut CopyCmd> = None;
-	for curr in cmds.iter_mut() {
-		if let Some(prev) = prev {
+	if cmds.len() > 1 {
+		cmds.sort_by_key(|v| v.target);
+		let (mut prev, rest) = cmds.split_first_mut().unwrap();
+		for curr in rest.iter_mut() {
 			if prev.source + prev.size as u64 == curr.source
 				&& prev.target + prev.size as u64 == curr.target
 			{
@@ -165,10 +186,10 @@ fn optimize_copy_cmds(cmds: &mut Vec<CopyCmd>) {
 				curr.size += prev.size;
 				prev.size = 0;
 			}
+			prev = curr;
 		}
-		prev = Some(curr);
+		cmds.retain(|cmd| cmd.size != 0);
 	}
-	cmds.retain(|cmd| cmd.size != 0);
 }
 
 pub fn build_patch(other_data: &[u8], patch_commands: &PatchCommands) -> Patch {

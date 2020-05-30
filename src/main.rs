@@ -103,6 +103,11 @@ fn diff_files(base_filename: &str, other_filename: &str) -> Result<()> {
 	let patch_commands =
 		patchy::compute_diff(&base_mmap, &other_blocks, patchy::DEFAULT_BLOCK_SIZE);
 
+	if patch_commands.is_synchronized() {
+		println!("Patch is not required");
+		return Ok(());
+	}
+
 	println!(
 		"Diff size {:.2} MB",
 		size_mb(patch_commands.need_bytes_from_other())
