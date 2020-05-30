@@ -251,6 +251,7 @@ dependencies = [
  "anyhow",
  "blake3",
  "clap",
+ "constant_time_eq",
  "log",
  "memmap",
  "rayon",

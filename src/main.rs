@@ -9,7 +9,7 @@ use std::fs::File;
 use std::time::Instant;
 
 mod hash;
-use hash::RollingHash;
+use hash::{RollingHash, compute_hash_strong};
 
 mod patchy;
 
@@ -94,9 +94,19 @@ fn diff_files(base_filename: &str, other_filename: &str) -> Result<()> {
 	let other_blocks = patchy::compute_blocks(&other_mmap, patchy::DEFAULT_BLOCK_SIZE);
 
 	println!("Computing diff");
-	let diff_size = patchy::compute_diff(&base_mmap, &other_blocks, patchy::DEFAULT_BLOCK_SIZE);
+	let patch_commands = patchy::compute_diff(&base_mmap, &other_blocks, patchy::DEFAULT_BLOCK_SIZE);
 
-	println!("Diff size {} MB", size_mb(diff_size));
+	println!("Diff size {} MB", size_mb(patch_commands.need_bytes_from_other()));
+	println!("Blocks from BASE: {}, from OTHER: {}", patch_commands.base.len(), patch_commands.other.len());
+
+	println!("Verifying patch");
+	let patch = patchy::build_patch(&other_mmap, &patch_commands);
+	let patched_base = patchy::apply_patch(&base_mmap, &patch);
+	assert_eq!(patched_base.len(), other_mmap.len());
+
+	let other_hash = compute_hash_strong(&other_mmap);
+	let patched_base_hash = compute_hash_strong(&patched_base);
+	assert_eq!(other_hash, patched_base_hash);
 
 	Ok(())
 }
@@ -140,9 +150,7 @@ fn main() {
 			Ok(_) => println!("Success"),
 			Err(e) => println!("Failed: {:?}", e),
 		}
-	}
-
-	if let Some(matches) = matches.subcommand_matches("diff") {
+	} else if let Some(matches) = matches.subcommand_matches("diff") {
 		let base = matches.value_of("BASE").unwrap();
 		let other = matches.value_of("OTHER").unwrap();
 		println!("Diffing '{}' and '{}'", base, other);

@@ -11,3 +11,5 @@ clap = "2.33.1"
 log = "0.4.8"
 memmap = "0.7.0"
 rayon = "1.1"
+constant_time_eq = "0.1.5"
+

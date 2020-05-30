@@ -12,7 +12,7 @@ impl RollingHash {
 			count: 0,
 		}
 	}
-	pub fn count(& self) -> usize {
+	pub fn count(&self) -> usize {
 		return self.count;
 	}
 	pub fn update(&mut self, input: &[u8]) {
@@ -36,17 +36,15 @@ impl RollingHash {
 	}
 }
 
-#[derive(Clone, Copy, Hash, Eq)]
+#[derive(Clone, Copy, Hash, Debug)]
 pub struct Hash128([u8; 16]);
 
 impl Hash128 {
-
 	fn new_from_blake3(hash: &blake3::Hash) -> Self {
-		let mut bytes : [u8; 16] = [0; 16];
+		let mut bytes: [u8; 16] = [0; 16];
 		bytes.copy_from_slice(&hash.as_bytes()[0..16]);
-		Self([0u8; 16])
+		Self(bytes)
 	}
-
 	pub fn as_bytes(&self) -> &[u8; 16] {
 		&self.0
 	}
@@ -65,8 +63,9 @@ pub fn compute_hash_weak(input: &[u8]) -> u32 {
 }
 
 impl PartialEq for Hash128 {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
+	fn eq(&self, other: &Self) -> bool {
+		constant_time_eq::constant_time_eq_16(&self.0, &other.0)
+	}
 }
 
+impl Eq for Hash128 {}
