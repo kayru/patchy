@@ -139,8 +139,9 @@ fn diff_files(base_filename: &str, other_filename: &str) -> Result<()> {
 		"Serialized uncompressed size: {:.2} MB",
 		size_mb(patch_serialized.len())
 	);
-	println!("Compressing patch");
-	let patch_compressed: Vec<u8> = zstd::block::compress(&patch_serialized, 19)?;
+	let zstd_level = 19;
+	println!("Compressing patch (zstd level {})", zstd_level);
+	let patch_compressed: Vec<u8> = zstd::block::compress(&patch_serialized, zstd_level)?;
 	println!("Compressed size: {:.2} MB", size_mb(patch_compressed.len()));
 
 	Ok(())
