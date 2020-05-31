@@ -214,7 +214,7 @@ fn dispatch_command(matches: clap::ArgMatches) -> Result<()> {
 fn main() {
 	match dispatch_command(
 		App::new("Patchy")
-			.version("0.0.1")
+			.version(env!("CARGO_PKG_VERSION"))
 			.about("Binary patching tool")
 			.subcommand(
 				SubCommand::with_name("hash")
