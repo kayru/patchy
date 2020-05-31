@@ -289,6 +289,7 @@ fn dispatch_command(matches: clap::ArgMatches) -> Result<()> {
 }
 
 fn main() {
+	let time_begin = Instant::now();
 	match dispatch_command(
 		App::new("Patchy")
 			.version(env!("CARGO_PKG_VERSION"))
@@ -338,7 +339,10 @@ fn main() {
 			)
 			.get_matches(),
 	) {
-		Ok(_) => println!("Success"),
+		Ok(_) => println!(
+			"Success (took {:.2} seconds)",
+			(Instant::now() - time_begin).as_secs_f64()
+		),
 		Err(e) => println!("Failed: {:?}", e),
 	}
 }

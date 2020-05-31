@@ -38,7 +38,7 @@ impl RollingHash {
 	}
 }
 
-#[derive(Clone, Copy, Hash, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Hash, PartialEq, Eq)]
 pub struct Hash128([u8; 16]);
 
 impl Hash128 {
@@ -63,11 +63,3 @@ pub fn compute_hash_weak(input: &[u8]) -> u32 {
 	hash_rolling.update(&input);
 	hash_rolling.get()
 }
-
-impl PartialEq for Hash128 {
-	fn eq(&self, other: &Self) -> bool {
-		constant_time_eq::constant_time_eq_16(&self.0, &other.0)
-	}
-}
-
-impl Eq for Hash128 {}
