@@ -21,7 +21,7 @@ const DEFAULT_COMPRESSION_LEVEL: i32 = 15;
 
 fn size_mb(size: usize) -> f64 {
 	let mb = (1 << 20) as f64;
-	return (size as f64) / mb;
+	(size as f64) / mb
 }
 
 fn compress(data: &[u8], level: i32) -> std::io::Result<Vec<u8>> {
@@ -172,8 +172,8 @@ fn diff_files(
 		id: PATCH_FILE_ID,
 		version: PATCH_FILE_VERSION,
 		base_hash: compute_hash_strong(&base_mmap),
-		other_hash: other_hash,
-		patch: patch,
+		other_hash,
+		patch,
 	};
 	let patch_serialized: Vec<u8> = bincode::serialize(&patch_with_header)?;
 	println!(

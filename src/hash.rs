@@ -15,7 +15,7 @@ impl RollingHash {
 		}
 	}
 	pub fn count(&self) -> usize {
-		return self.count;
+		self.count
 	}
 	pub fn update(&mut self, input: &[u8]) {
 		for x in input {

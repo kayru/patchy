@@ -47,7 +47,7 @@ pub struct PatchCommands {
 	pub other: Vec<CopyCmd>,
 }
 
-fn compute_copy_size(cmds: &Vec<CopyCmd>) -> usize {
+fn compute_copy_size(cmds: &[CopyCmd]) -> usize {
 	let mut result: usize = 0;
 	for cmd in cmds {
 		result += cmd.size as usize;
@@ -73,7 +73,7 @@ impl PatchCommands {
 	}
 }
 
-fn is_synchronized(sequence: &Vec<Hash128>, blocks: &Vec<Block>) -> bool {	
+fn is_synchronized(sequence: &[Hash128], blocks: &[Block]) -> bool {	
 	if sequence.len() != blocks.len() {
 		return false;
 	}
@@ -85,7 +85,7 @@ fn is_synchronized(sequence: &Vec<Hash128>, blocks: &Vec<Block>) -> bool {
 	true
 }
 
-pub fn compute_diff(input: &[u8], other_blocks: &Vec<Block>, block_size: usize) -> PatchCommands {
+pub fn compute_diff(input: &[u8], other_blocks: &[Block], block_size: usize) -> PatchCommands {
 	let mut other_block_weak_set: HashSet<u32> = HashSet::new();
 	let mut other_block_strong_set: HashSet<Hash128> = HashSet::new();
 	let mut base_block_hash_map: HashMap<Hash128, u64> = HashMap::new();
@@ -108,7 +108,7 @@ pub fn compute_diff(input: &[u8], other_blocks: &Vec<Block>, block_size: usize) 
 					return Some(block);
 				}
 			}
-			return None;
+			None
 		};
 	let mut rolling_hash = RollingHash::new();
 	let mut window_begin: usize = 0;
@@ -128,7 +128,6 @@ pub fn compute_diff(input: &[u8], other_blocks: &Vec<Block>, block_size: usize) 
 		match find_base_block(window_begin, window_end, rolling_hash.get()) {
 			Some(base_block) => {
 				window_begin = window_end;
-				window_end = window_begin;
 				rolling_hash = RollingHash::new();
 				base_block_hash_map.insert(base_block.hash_strong, base_block.offset);
 				sequence.push(base_block.hash_strong);
