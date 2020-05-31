@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::{App, Arg, SubCommand};
 use memmap::MmapOptions;
 use std::fs::File;
+use std::io::prelude::*;
 use std::time::Instant;
 
 mod hash;
@@ -69,7 +70,7 @@ fn hash_file(filename: &str) -> Result<()> {
 	Ok(())
 }
 
-fn diff_files(base_filename: &str, other_filename: &str) -> Result<()> {
+fn diff_files(base_filename: &str, other_filename: &str, patch_filename: Option<&str>) -> Result<()> {
 	let base_file = File::open(base_filename).context("Can't open BASE input file")?;
 	let base_mmap = unsafe {
 		MmapOptions::new()
@@ -144,55 +145,65 @@ fn diff_files(base_filename: &str, other_filename: &str) -> Result<()> {
 	let patch_compressed: Vec<u8> = zstd::block::compress(&patch_serialized, zstd_level)?;
 	println!("Compressed size: {:.2} MB", size_mb(patch_compressed.len()));
 
+	if let Some(patch_filename) = patch_filename {
+		println!("Writing patch to '{}'", patch_filename);
+		let mut patch_file : std::fs::File = File::create(patch_filename).context("Can't open PATCH output file")?;
+		patch_file.write_all(&patch_compressed)?;
+	}
+
+	Ok(())
+}
+
+fn dispatch_command(matches: clap::ArgMatches) -> Result<()> {
+	if let Some(matches) = matches.subcommand_matches("hash") {
+		let input = matches.value_of("INPUT").unwrap();
+		println!("Hashing '{}'", input);
+		return hash_file(input);
+	} else if let Some(matches) = matches.subcommand_matches("diff") {
+		let base = matches.value_of("BASE").unwrap();
+		let other = matches.value_of("OTHER").unwrap();
+		let patch = matches.value_of("PATCH");
+		println!("Diffing '{}' and '{}'", base, other);
+		return diff_files(base, other, patch);
+	}
 	Ok(())
 }
 
 fn main() {
-	let matches = App::new("Patchy")
-		.version("0.0.1")
-		.about("Binary patching tool")
-		.subcommand(
-			SubCommand::with_name("hash")
-				.about("Computes block hash for a file")
-				.arg(
-					Arg::with_name("INPUT")
-						.index(1)
-						.required(true)
-						.help("Input file"),
-				),
-		)
-		.subcommand(
-			SubCommand::with_name("diff")
-				.about("Computes binary difference between files")
-				.arg(
-					Arg::with_name("BASE")
-						.index(1)
-						.required(true)
-						.help("Base file"),
-				)
-				.arg(
-					Arg::with_name("OTHER")
-						.index(2)
-						.required(true)
-						.help("Other file"),
-				),
-		)
-		.get_matches();
-
-	if let Some(matches) = matches.subcommand_matches("hash") {
-		let input = matches.value_of("INPUT").unwrap();
-		println!("Hashing '{}'", input);
-		match hash_file(input) {
-			Ok(_) => println!("Success"),
-			Err(e) => println!("Failed: {:?}", e),
-		}
-	} else if let Some(matches) = matches.subcommand_matches("diff") {
-		let base = matches.value_of("BASE").unwrap();
-		let other = matches.value_of("OTHER").unwrap();
-		println!("Diffing '{}' and '{}'", base, other);
-		match diff_files(base, other) {
-			Ok(_) => println!("Success"),
-			Err(e) => println!("Failed: {:?}", e),
-		}
+	match dispatch_command(
+		App::new("Patchy")
+			.version("0.0.1")
+			.about("Binary patching tool")
+			.subcommand(
+				SubCommand::with_name("hash")
+					.about("Computes block hash for a file")
+					.arg(
+						Arg::with_name("INPUT")
+							.required(true)
+							.help("Input file"),
+					),
+			)
+			.subcommand(
+				SubCommand::with_name("diff")
+					.about("Computes binary difference between files")
+					.arg(
+						Arg::with_name("BASE")
+							.required(true)
+							.help("Base file"),
+					)
+					.arg(
+						Arg::with_name("OTHER")
+							.required(true)
+							.help("Other file"),
+					)
+					.arg(
+						Arg::with_name("PATCH")
+							.help("Output patch file")
+					),
+			)
+			.get_matches(),
+	) {
+		Ok(_) => println!("Success"),
+		Err(e) => println!("Failed: {:?}", e),
 	}
 }
