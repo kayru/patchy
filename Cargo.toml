@@ -3,6 +3,9 @@ name = "patchy"
 version = "0.0.1"
 authors = ["Yuriy O'Donnell <yuriyo@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/kayru/patchy"
+description = "Binary patching tool"
+license = "MIT"
 
 [dependencies]
 anyhow = "1.0.31"
