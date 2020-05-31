@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 
-//pub const DEFAULT_BLOCK_SIZE: usize = 16384;
 pub const DEFAULT_BLOCK_SIZE: usize = 2048;
 
 fn div_up(num: usize, den: usize) -> usize {
@@ -83,24 +82,23 @@ fn is_synchronized(sequence: &Vec<Hash128>, blocks: &Vec<Block>) -> bool {
 			return false;
 		}
 	}
-	
 	true
 }
 
 pub fn compute_diff(input: &[u8], other_blocks: &Vec<Block>, block_size: usize) -> PatchCommands {
-	let mut weak_hash_set: HashSet<u32> = HashSet::new();
+	let mut other_block_weak_set: HashSet<u32> = HashSet::new();
+	let mut other_block_strong_set: HashSet<Hash128> = HashSet::new();
 	let mut base_block_hash_map: HashMap<Hash128, u64> = HashMap::new();
-	let mut other_block_hash_map: HashMap<Hash128, u64> = HashMap::new();
 	for block in other_blocks {
-		weak_hash_set.insert(block.hash_weak);
-		other_block_hash_map.insert(block.hash_strong, block.offset);
+		other_block_weak_set.insert(block.hash_weak);
+		other_block_strong_set.insert(block.hash_strong);
 	}
 	let find_base_block =
 		|block_begin: usize, block_end: usize, block_hash_weak: u32| -> Option<Block> {
-			if weak_hash_set.contains(&block_hash_weak) {
+			if other_block_weak_set.contains(&block_hash_weak) {
 				let block_slice = &input[block_begin..block_end];
 				let block_hash_strong = compute_hash_strong(block_slice);
-				if other_block_hash_map.contains_key(&block_hash_strong) {
+				if other_block_strong_set.contains(&block_hash_strong) {
 					let block = Block {
 						offset: block_begin as u64,
 						size: (block_end - block_begin) as u32,

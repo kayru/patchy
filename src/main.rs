@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{App, Arg, SubCommand};
 use memmap::MmapOptions;
+use std::cmp::{max, min};
 use std::fs::File;
 use std::io::prelude::*;
 use std::time::Instant;
@@ -9,6 +10,12 @@ mod hash;
 use hash::{compute_hash_strong, RollingHash};
 
 mod patchy;
+
+pub const BLOCK_SIZE_BOUNDS_LOG2: (i32, i32) = (6, 24);
+pub const DEFAULT_BLOCK_SIZE_LOG2: i32 = 11; // experimentally found to be the best balanced value for smallest patch size
+
+pub const COMPRESSION_LEVEL_BOUNDS: (i32, i32) = (1, 22);
+pub const DEFAULT_COMPRESSION_LEVEL: i32 = 15;
 
 fn size_mb(size: usize) -> f64 {
 	let mb = (1 << 20) as f64;
@@ -70,7 +77,13 @@ fn hash_file(filename: &str) -> Result<()> {
 	Ok(())
 }
 
-fn diff_files(base_filename: &str, other_filename: &str, patch_filename: Option<&str>) -> Result<()> {
+fn diff_files(
+	base_filename: &str,
+	other_filename: &str,
+	patch_filename: Option<&str>,
+	block_size: usize,
+	compression_level: i32,
+) -> Result<()> {
 	let base_file = File::open(base_filename).context("Can't open BASE input file")?;
 	let base_mmap = unsafe {
 		MmapOptions::new()
@@ -78,7 +91,7 @@ fn diff_files(base_filename: &str, other_filename: &str, patch_filename: Option<
 			.context("Can't memory map input file")?
 	};
 	println!(
-		"Base size {:.2} MB ({} bytes)",
+		"Base size: {:.2} MB ({} bytes)",
 		size_mb(base_mmap.len()),
 		base_mmap.len()
 	);
@@ -90,19 +103,18 @@ fn diff_files(base_filename: &str, other_filename: &str, patch_filename: Option<
 			.context("Can't memory map input file")?
 	};
 	println!(
-		"Other size {:.2} MB ({} bytes)",
+		"Other size: {:.2} MB ({} bytes)",
 		size_mb(other_mmap.len()),
 		other_mmap.len()
 	);
 
-	println!("Using block size {}", patchy::DEFAULT_BLOCK_SIZE);
+	println!("Using block size: {}", block_size);
 
 	println!("Computing blocks hashes for '{}'", other_filename);
-	let other_blocks = patchy::compute_blocks(&other_mmap, patchy::DEFAULT_BLOCK_SIZE);
+	let other_blocks = patchy::compute_blocks(&other_mmap, block_size);
 
 	println!("Computing diff");
-	let patch_commands =
-		patchy::compute_diff(&base_mmap, &other_blocks, patchy::DEFAULT_BLOCK_SIZE);
+	let patch_commands = patchy::compute_diff(&base_mmap, &other_blocks, block_size);
 
 	if patch_commands.is_synchronized() {
 		println!("Patch is not required");
@@ -110,7 +122,7 @@ fn diff_files(base_filename: &str, other_filename: &str, patch_filename: Option<
 	}
 
 	println!(
-		"Diff size {:.2} MB",
+		"Diff size: {:.2} MB",
 		size_mb(patch_commands.need_bytes_from_other())
 	);
 
@@ -140,18 +152,30 @@ fn diff_files(base_filename: &str, other_filename: &str, patch_filename: Option<
 		"Serialized uncompressed size: {:.2} MB",
 		size_mb(patch_serialized.len())
 	);
-	let zstd_level = 19;
-	println!("Compressing patch (zstd level {})", zstd_level);
-	let patch_compressed: Vec<u8> = zstd::block::compress(&patch_serialized, zstd_level)?;
+
+	println!("Compressing patch (zstd level {})", compression_level);
+	let patch_compressed: Vec<u8> = zstd::block::compress(&patch_serialized, compression_level)?;
 	println!("Compressed size: {:.2} MB", size_mb(patch_compressed.len()));
 
 	if let Some(patch_filename) = patch_filename {
 		println!("Writing patch to '{}'", patch_filename);
-		let mut patch_file : std::fs::File = File::create(patch_filename).context("Can't open PATCH output file")?;
+		let mut patch_file: std::fs::File =
+			File::create(patch_filename).context("Can't open PATCH output file")?;
 		patch_file.write_all(&patch_compressed)?;
 	}
 
 	Ok(())
+}
+
+fn clamp_parameter(name: &str, v: i32, bounds: (i32, i32)) -> i32 {
+	let clamped = min(max(bounds.0, v), bounds.1);
+	if v != clamped {
+		println!(
+			"{} ({}) is outside of expected range [{}..{}] and was clamped to {}",
+			name, v, bounds.0, bounds.1, clamped
+		)
+	}
+	clamped
 }
 
 fn dispatch_command(matches: clap::ArgMatches) -> Result<()> {
@@ -163,8 +187,26 @@ fn dispatch_command(matches: clap::ArgMatches) -> Result<()> {
 		let base = matches.value_of("BASE").unwrap();
 		let other = matches.value_of("OTHER").unwrap();
 		let patch = matches.value_of("PATCH");
+		let block_size = match matches.value_of("block") {
+			Some(block_str) => {
+				let block_size_log2 = block_str
+					.parse::<i32>()
+					.context("Couldn't parse block size parameter into integer")?;
+				1 << clamp_parameter("Block size", block_size_log2, BLOCK_SIZE_BOUNDS_LOG2)
+			}
+			None => 1 << DEFAULT_BLOCK_SIZE_LOG2,
+		};
+		let compression_level = match matches.value_of("level") {
+			Some(level_str) => {
+				let level = level_str
+					.parse::<i32>()
+					.context("Couldn't parse compression level parameter into integer")?;
+				clamp_parameter("Compression level", level, COMPRESSION_LEVEL_BOUNDS)
+			}
+			None => DEFAULT_COMPRESSION_LEVEL,
+		};
 		println!("Diffing '{}' and '{}'", base, other);
-		return diff_files(base, other, patch);
+		return diff_files(base, other, patch, block_size, compression_level);
 	}
 	Ok(())
 }
@@ -177,29 +219,37 @@ fn main() {
 			.subcommand(
 				SubCommand::with_name("hash")
 					.about("Computes block hash for a file")
-					.arg(
-						Arg::with_name("INPUT")
-							.required(true)
-							.help("Input file"),
-					),
+					.arg(Arg::with_name("INPUT").required(true).help("Input file")),
 			)
 			.subcommand(
 				SubCommand::with_name("diff")
 					.about("Computes binary difference between files")
 					.arg(
-						Arg::with_name("BASE")
-							.required(true)
-							.help("Base file"),
+						Arg::with_name("level")
+							.short("l")
+							.takes_value(true)
+							.help(&format!(
+								"Compression level [{}..{}], default = {}",
+								COMPRESSION_LEVEL_BOUNDS.0,
+								COMPRESSION_LEVEL_BOUNDS.1,
+								DEFAULT_COMPRESSION_LEVEL
+							)),
 					)
 					.arg(
-						Arg::with_name("OTHER")
-							.required(true)
-							.help("Other file"),
+						Arg::with_name("block")
+							.short("b")
+							.takes_value(true)
+							.help(&format!(
+								"Patch block size as log2(bytes) [{}..{}], default = {} ({} bytes)",
+								BLOCK_SIZE_BOUNDS_LOG2.0,
+								BLOCK_SIZE_BOUNDS_LOG2.1,
+								DEFAULT_BLOCK_SIZE_LOG2,
+								1 << DEFAULT_BLOCK_SIZE_LOG2
+							)),
 					)
-					.arg(
-						Arg::with_name("PATCH")
-							.help("Output patch file")
-					),
+					.arg(Arg::with_name("BASE").required(true).help("Base file"))
+					.arg(Arg::with_name("OTHER").required(true).help("Other file"))
+					.arg(Arg::with_name("PATCH").help("Output patch file")),
 			)
 			.get_matches(),
 	) {
