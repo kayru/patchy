@@ -1,11 +1,13 @@
 [package]
 name = "patchy"
-version = "0.0.3"
+version = "0.0.4"
 authors = ["Yuriy O'Donnell <yuriyo@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/kayru/patchy"
 description = "Binary patching tool"
 license = "MIT"
+readme = "README.md"
+categories = ["command-line-utilities"]
 
 [dependencies]
 anyhow = "1.0.31"
