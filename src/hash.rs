@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 pub struct RollingHash {
 	a: u16,
 	b: u16,
@@ -36,7 +38,7 @@ impl RollingHash {
 	}
 }
 
-#[derive(Clone, Copy, Hash, Debug)]
+#[derive(Clone, Copy, Hash, Debug, Deserialize, Serialize)]
 pub struct Hash128([u8; 16]);
 
 impl Hash128 {
