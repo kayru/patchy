@@ -1,6 +1,6 @@
 [package]
 name = "patchy"
-version = "0.0.4"
+version = "0.0.5"
 authors = ["Yuriy O'Donnell <yuriyo@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/kayru/patchy"

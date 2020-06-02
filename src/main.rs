@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::{App, AppSettings, Arg, SubCommand};
 use memmap::MmapOptions;
 use serde::{Deserialize, Serialize};
@@ -163,12 +163,23 @@ fn diff_files(
 
     println!("Verifying patch");
     let patched_base = apply_patch(&base_mmap, &patch);
-    assert_eq!(patched_base.len(), other_mmap.len());
+    if patched_base.len() != other_mmap.len() {
+        return Err(anyhow!(
+            "Patched base file size is {} but expected to be {}",
+            patched_base.len(),
+            other_mmap.len()
+        ));
+    }
 
     let other_hash = compute_hash_strong(&other_mmap);
     let patched_base_hash = compute_hash_strong(&patched_base);
-    assert_eq!(other_hash, patched_base_hash);
-    drop(patched_base);
+    if other_hash != patched_base_hash {
+        return Err(anyhow!(
+            "Patched base file hash is {:?} but expected to be {:?}",
+            other_hash,
+            patched_base_hash
+        ));
+    }
 
     println!("Serializing patch");
     let patch_with_header = PatchWithHeader {
@@ -218,19 +229,38 @@ fn patch_file(
     };
     let patch_decompressed = decompress(&patch_mmap)?;
     let patch_with_header: PatchWithHeader = bincode::deserialize(&patch_decompressed)?;
-    assert_eq!(patch_with_header.id, PATCH_FILE_ID);
-    assert_eq!(patch_with_header.version, PATCH_FILE_VERSION);
+    if patch_with_header.id != PATCH_FILE_ID || patch_with_header.version != PATCH_FILE_VERSION {
+        return Err(anyhow!(
+            "Patch header is [{:?} v{}] but expected to be [{:?} v{}]",
+            patch_with_header.id,
+            patch_with_header.version,
+            PATCH_FILE_ID,
+            PATCH_FILE_VERSION
+        ));
+    }
 
     println!("Verifying base file");
     let base_hash = compute_hash_strong(&base_mmap);
-    assert_eq!(base_hash, patch_with_header.base_hash);
+    if base_hash != patch_with_header.base_hash {
+        return Err(anyhow!(
+            "Base file hash is {:?} but expected to be {:?}",
+            base_hash,
+            patch_with_header.base_hash
+        ));
+    }
 
     println!("Applying patch");
     let patched_base = apply_patch(&base_mmap, &patch_with_header.patch);
 
     println!("Verifying result file");
     let patched_base_hash = compute_hash_strong(&patched_base);
-    assert_eq!(patched_base_hash, patch_with_header.other_hash);
+    if patched_base_hash != patch_with_header.other_hash {
+        return Err(anyhow!(
+            "Patched file hash is {:?} but expected to be {:?}",
+            patched_base_hash,
+            patch_with_header.other_hash
+        ));
+    }
 
     if let Some(output_filename) = output_filename {
         println!("Writing output to '{}'", output_filename);
@@ -238,6 +268,7 @@ fn patch_file(
             File::create(output_filename).context("Can't open OUTPUT file")?;
         patch_file.write_all(&patched_base)?;
     }
+
     Ok(())
 }
 

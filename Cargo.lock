@@ -196,7 +196,7 @@ dependencies = [
 
 [[package]]
 name = "patchy"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "bincode",

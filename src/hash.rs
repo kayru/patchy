@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use core::fmt;
 
 pub struct RollingHash {
     a: u16,
@@ -38,7 +39,7 @@ impl RollingHash {
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Deserialize, Serialize, Hash, PartialEq, Eq)]
 pub struct Hash128([u8; 16]);
 
 impl Hash128 {
@@ -49,6 +50,21 @@ impl Hash128 {
     }
     pub fn as_bytes(&self) -> &[u8; 16] {
         &self.0
+	}
+	pub fn to_hex_string(&self) -> String {
+        let mut s = String::new();
+        let table = b"0123456789abcdef";
+        for &b in self.0.iter() {
+            s.push(table[(b >> 4) as usize] as char);
+            s.push(table[(b & 0xf) as usize] as char);
+        }
+        s
+    }
+}
+
+impl fmt::Debug for Hash128 {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Hash128({})", self.to_hex_string())
     }
 }
 
