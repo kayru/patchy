@@ -37,9 +37,9 @@ pub fn compute_blocks(input: &[u8], block_size: usize) -> Vec<Block> {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CopyCmd {
-    source: u64,
-    target: u64,
-    size: u32,
+    pub source: u64,
+    pub target: u64,
+    pub size: u32,
 }
 
 pub struct PatchCommands {
@@ -89,9 +89,11 @@ pub fn compute_diff(input: &[u8], other_blocks: &[Block], block_size: usize) -> 
     let mut other_block_weak_set: HashSet<u32> = HashSet::new();
     let mut other_block_strong_set: HashSet<Hash128> = HashSet::new();
     let mut base_block_hash_map: HashMap<Hash128, u64> = HashMap::new();
+    let mut other_len = 0;
     for block in other_blocks {
         other_block_weak_set.insert(block.hash_weak);
         other_block_strong_set.insert(block.hash_strong);
+        other_len += block.size as usize;
     }
     let find_base_block =
         |block_begin: usize, block_end: usize, block_hash_weak: u32| -> Option<Block> {
@@ -139,7 +141,7 @@ pub fn compute_diff(input: &[u8], other_blocks: &[Block], block_size: usize) -> 
         }
     }
     let mut patch_commands = PatchCommands::new();
-    if !is_synchronized(&sequence, &other_blocks) {
+    if input.len() != other_len || !is_synchronized(&sequence, &other_blocks) {
         for other_block in other_blocks {
             match base_block_hash_map.get(&other_block.hash_strong) {
                 Some(&base_offset) => {
