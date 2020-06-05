@@ -42,7 +42,7 @@ pub fn compute_blocks(input: &[u8], block_size: usize) -> Vec<Block> {
     result
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CopyCmd {
     pub source: u64,
     pub target: u64,
@@ -202,6 +202,7 @@ fn optimize_copy_cmds(cmds: &mut Vec<CopyCmd>) {
         for curr in rest.iter_mut() {
             if prev.source + prev.size as u64 == curr.source
                 && prev.target + prev.size as u64 == curr.target
+                && prev.size as u64 + curr.size as u64 <= u32::max_value() as u64
             {
                 curr.source = prev.source;
                 curr.target = prev.target;
@@ -253,3 +254,8 @@ pub fn apply_patch(base_data: &[u8], patch: &Patch) -> Vec<u8> {
     }
     result
 }
+
+#[cfg(test)]
+pub fn testing_optimize_copy_cmds(cmds: &mut Vec<crate::CopyCmd>) {
+    optimize_copy_cmds(cmds);
+}    

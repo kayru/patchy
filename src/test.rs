@@ -66,7 +66,7 @@ fn test_patch_1mb_equal() {
 #[test]
 fn test_patch_1mb_diff_1block() {
     let mut a: Vec<u8> = Vec::new();
-    for i in 0..1024*1024 {
+    for i in 0..1024 * 1024 {
         a.push(i as u8);
     }
     let mut b: Vec<u8> = a.clone();
@@ -89,8 +89,8 @@ fn test_patch_1mb_diff_1block() {
 #[test]
 fn test_patch_128kb_u8_shifted() {
     let mut a: Vec<u8> = Vec::new();
-    let mut b: Vec<u8> = Vec::new();    
-    for i in 0..128*1024 {
+    let mut b: Vec<u8> = Vec::new();
+    for i in 0..128 * 1024 {
         a.push(i as u8);
         b.push((i as u8).wrapping_add(1));
     }
@@ -101,4 +101,28 @@ fn test_patch_128kb_u8_shifted() {
     assert_eq!(patch.data.len(), 0);
     let c = apply_patch(&a, &patch);
     assert_eq!(compute_hash_strong(&b), compute_hash_strong(&c));
+}
+
+#[test]
+fn test_optimize_commands_large() {
+    let mut cmds: Vec<CopyCmd> = Vec::new();
+    let mut total_size: u64 = 0;
+    for _ in 0..8 {
+        let cmd = CopyCmd {
+            source: total_size,
+            target: total_size,
+            size: 1 << 30u64,
+        };
+        total_size += cmd.size as u64;
+        cmds.push(cmd);
+    }
+    println!("original commands: {:?}", &cmds);
+    assert_eq!(cmds.len(), 8);
+    let size_before = cmds.iter().map(|c| c.size as u64).fold(0, |acc, x| acc + x);
+    assert_eq!(size_before, 8u64 << 30);
+    testing_optimize_copy_cmds(&mut cmds);
+    let size_after = cmds.iter().map(|c| c.size as u64).fold(0, |acc, x| acc + x);
+    assert_eq!(size_before, size_after);
+    println!("optimized commands: {:?}", &cmds);
+    assert_eq!(cmds.len(), 3);
 }
