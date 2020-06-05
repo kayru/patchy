@@ -1,4 +1,5 @@
 use crate::hash::*;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
@@ -24,14 +25,20 @@ pub fn compute_blocks(input: &[u8], block_size: usize) -> Vec<Block> {
     for i in 0..num_blocks {
         let block_begin = i * block_size;
         let block_end = min((i + 1) * block_size, input.len());
-        let block_slice = &input[block_begin..block_end];
         result.push(Block {
             offset: block_begin as u64,
             size: (block_end - block_begin) as u32,
-            hash_weak: compute_hash_weak(block_slice),
-            hash_strong: compute_hash_strong(block_slice),
+            hash_weak: 0,
+            hash_strong: Hash128::new_zero(),
         });
     }
+    result.par_iter_mut().for_each(|block| {
+        let block_begin = block.offset as usize;
+        let block_end = block_begin + block.size as usize;
+        let block_slice = &input[block_begin..block_end];
+        block.hash_weak = compute_hash_weak(block_slice);
+        block.hash_strong = compute_hash_strong(block_slice);
+    });
     result
 }
 

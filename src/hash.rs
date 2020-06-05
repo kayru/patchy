@@ -43,7 +43,10 @@ impl RollingHash {
 pub struct Hash128([u8; 16]);
 
 impl Hash128 {
-    fn new_from_blake3(hash: &blake3::Hash) -> Self {
+    pub fn new_zero() -> Self{
+        Self([0; 16])
+    }
+    pub fn new_from_blake3(hash: &blake3::Hash) -> Self {
         let mut bytes: [u8; 16] = [0; 16];
         bytes.copy_from_slice(&hash.as_bytes()[0..16]);
         Self(bytes)
