@@ -134,7 +134,7 @@ fn diff_files(
 
     println!("Using block size: {}", block_size);
 
-    println!("Computing blocks hashes for '{}'", other_filename);
+    println!("Computing block hashes for '{}'", other_filename);
     let other_blocks = compute_blocks(&other_mmap, block_size);
 
     println!("Computing diff");

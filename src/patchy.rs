@@ -10,7 +10,10 @@ fn div_up(num: usize, den: usize) -> usize {
     (num + den - 1) / den
 }
 
-#[derive(Clone)]
+fn slice_offset_from(slice: &[u8], base: &[u8]) -> u64 {
+    slice.as_ptr() as u64 - base.as_ptr() as u64
+}
+
 pub struct Block {
     pub offset: u64,
     pub size: u32,
@@ -19,15 +22,12 @@ pub struct Block {
 }
 
 pub fn compute_blocks(input: &[u8], block_size: usize) -> Vec<Block> {
-    let mut result: Vec<Block> = Vec::new();
-    let num_blocks = div_up(input.len(), block_size);
-    result.reserve(num_blocks);
-    for i in 0..num_blocks {
-        let block_begin = i * block_size;
-        let block_end = min((i + 1) * block_size, input.len());
+    let chunks = input.chunks(block_size);
+    let mut result: Vec<Block> = Vec::with_capacity(chunks.len());
+    for chunk in chunks {
         result.push(Block {
-            offset: block_begin as u64,
-            size: (block_end - block_begin) as u32,
+            offset: slice_offset_from(chunk, input),
+            size: chunk.len() as u32,
             hash_weak: 0,
             hash_strong: Hash128::new_zero(),
         });
@@ -42,11 +42,27 @@ pub fn compute_blocks(input: &[u8], block_size: usize) -> Vec<Block> {
     result
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct CopyCmd {
     pub source: u64,
     pub target: u64,
     pub size: u32,
+}
+
+impl CopyCmd {
+    fn execute(&self, target: &mut [u8], source: &[u8]) {
+        let source_bounds = (
+            self.source as usize,
+            self.source as usize + self.size as usize,
+        );
+        let target_bounds = (
+            self.target as usize,
+            self.target as usize + self.size as usize,
+        );
+        let source_slice = &source[source_bounds.0..source_bounds.1];
+        let target_slice = target[target_bounds.0..target_bounds.1].as_mut();
+        target_slice.copy_from_slice(source_slice);
+    }
 }
 
 pub struct PatchCommands {
@@ -230,15 +246,10 @@ pub fn apply_patch(base_data: &[u8], patch: &Patch) -> Vec<u8> {
     let mut result: Vec<u8> = Vec::new();
     result.resize(patch.other_size as usize, 0);
     for cmd in &patch.base {
-        let source_slice = &base_data[cmd.source as usize..cmd.source as usize + cmd.size as usize];
-        result[cmd.target as usize..cmd.target as usize + cmd.size as usize]
-            .copy_from_slice(source_slice);
+        cmd.execute(&mut result, &base_data);
     }
     for cmd in &patch.other {
-        let source_slice =
-            &patch.data[cmd.source as usize..cmd.source as usize + cmd.size as usize];
-        result[cmd.target as usize..cmd.target as usize + cmd.size as usize]
-            .copy_from_slice(source_slice);
+        cmd.execute(&mut result, &patch.data);
     }
     result
 }
