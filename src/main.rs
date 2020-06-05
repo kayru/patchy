@@ -189,14 +189,16 @@ fn diff_files(
         other_hash,
         patch,
     };
-    let patch_serialized: Vec<u8> = bincode::serialize(&patch_with_header)?;
+    let patch_serialized: Vec<u8> =
+        bincode::serialize(&patch_with_header).context("Could not deserialize patch file")?;
     println!(
         "Serialized uncompressed size: {:.2} MB",
         size_mb(patch_serialized.len())
     );
 
     println!("Compressing patch (zstd level {})", compression_level);
-    let patch_compressed = compress(&patch_serialized, compression_level)?;
+    let patch_compressed =
+        compress(&patch_serialized, compression_level).context("Could not compress patch data")?;
 
     println!("Compressed size: {:.2} MB", size_mb(patch_compressed.len()));
 
@@ -204,7 +206,9 @@ fn diff_files(
         println!("Writing patch to '{}'", patch_filename);
         let mut patch_file: std::fs::File =
             File::create(patch_filename).context("Can't open PATCH output file")?;
-        patch_file.write_all(&patch_compressed)?;
+        patch_file
+            .write_all(&patch_compressed)
+            .context("Could not write patch data to file")?;
     }
 
     Ok(())
@@ -227,8 +231,9 @@ fn patch_file(
             .map(&patch_file)
             .context("Can't memory map patch file")?
     };
-    let patch_decompressed = decompress(&patch_mmap)?;
-    let patch_with_header: PatchWithHeader = bincode::deserialize(&patch_decompressed)?;
+    let patch_decompressed = decompress(&patch_mmap).context("Could not decompress patch file")?;
+    let patch_with_header: PatchWithHeader =
+        bincode::deserialize(&patch_decompressed).context("Could not deserialize patch file")?;
     if patch_with_header.id != PATCH_FILE_ID || patch_with_header.version != PATCH_FILE_VERSION {
         return Err(anyhow!(
             "Patch header is [{:?} v{}] but expected to be [{:?} v{}]",
@@ -266,7 +271,9 @@ fn patch_file(
         println!("Writing output to '{}'", output_filename);
         let mut patch_file: std::fs::File =
             File::create(output_filename).context("Can't open OUTPUT file")?;
-        patch_file.write_all(&patched_base)?;
+        patch_file
+            .write_all(&patched_base)
+            .context("Could not write patch data to file")?;
     }
 
     Ok(())
