@@ -1,20 +1,13 @@
 use anyhow::{anyhow, Context, Result};
 use clap::{App, AppSettings, Arg, SubCommand};
 use memmap::MmapOptions;
+use patchy::hash::*;
+use patchy::patchy::*;
 use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};
 use std::fs::File;
 use std::io::prelude::*;
 use std::time::Instant;
-
-mod hash;
-use hash::*;
-
-mod patchy;
-use patchy::*;
-
-#[cfg(test)]
-mod test;
 
 const BLOCK_SIZE_BOUNDS_LOG2: (i32, i32) = (6, 24);
 const DEFAULT_BLOCK_SIZE_LOG2: i32 = 11; // experimentally found to be the best value for smallest patch size
