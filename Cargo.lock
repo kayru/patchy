@@ -46,9 +46,9 @@ checksum = "f8aac770f1885fd7e387acedd76065302551364496e46b3dd00860b2f8359b9d"
 
 [[package]]
 name = "bincode"
-version = "1.2.1"
+version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5753e2a71534719bf3f4e57006c3a4f0d2c672a4b676eec84161f763eca87dbf"
+checksum = "f30d3a39baa26f9651f17b375061f3233dde33424a8b72b0dbe93a68a0bc896d"
 dependencies = [
  "byteorder",
  "serde",
@@ -312,10 +312,11 @@ dependencies = [
 
 [[package]]
 name = "rayon"
-version = "1.3.0"
+version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db6ce3297f9c85e16621bb8cca38a06779ffc31bb8184e1be4bed2be4678a098"
+checksum = "62f02856753d04e03e26929f820d0a0a337ebe71f849801eea335d464b349080"
 dependencies = [
+ "autocfg",
  "crossbeam-deque",
  "either",
  "rayon-core",
@@ -323,9 +324,9 @@ dependencies = [
 
 [[package]]
 name = "rayon-core"
-version = "1.7.0"
+version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08a89b46efaf957e52b18062fb2f4660f8b8a4dde1807ca002690868ef2c85a9"
+checksum = "e92e15d89083484e11353891f1af602cc661426deb9564c298b270c726973280"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-queue",
@@ -440,18 +441,18 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "zstd"
-version = "0.5.2+zstd.1.4.5"
+version = "0.5.3+zstd.1.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "644352b10ce7f333d6e0af85bd4f5322dc449416dc1211c6308e95bca8923db4"
+checksum = "01b32eaf771efa709e8308605bbf9319bf485dc1503179ec0469b611937c0cd8"
 dependencies = [
  "zstd-safe",
 ]
 
 [[package]]
 name = "zstd-safe"
-version = "2.0.4+zstd.1.4.5"
+version = "2.0.5+zstd.1.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7113c0c9aed2c55181f2d9f5b0a36e7d2c0183b11c058ab40b35987479efe4d7"
+checksum = "1cfb642e0d27f64729a639c52db457e0ae906e7bc6f5fe8f5c453230400f1055"
 dependencies = [
  "libc",
  "zstd-sys",
@@ -459,9 +460,9 @@ dependencies = [
 
 [[package]]
 name = "zstd-sys"
-version = "1.4.16+zstd.1.4.5"
+version = "1.4.17+zstd.1.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c442965efc45353be5a9b9969c9b0872fff6828c7e06d118dda2cb2d0bb11d5a"
+checksum = "b89249644df056b522696b1bb9e7c18c87e8ffa3e2f0dc3b0155875d6498f01b"
 dependencies = [
  "cc",
  "glob",
