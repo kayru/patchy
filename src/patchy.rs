@@ -50,7 +50,7 @@ pub struct CopyCmd {
 }
 
 impl CopyCmd {
-    fn execute(&self, target: &mut [u8], source: &[u8]) {
+    pub fn execute(&self, target: &mut [u8], source: &[u8]) {
         let source_bounds = (
             self.source as usize,
             self.source as usize + self.size as usize,
