@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};
 use std::fs::File;
 use std::io::prelude::*;
+use std::ops::Deref;
 use std::time::Instant;
 
 const BLOCK_SIZE_BOUNDS_LOG2: (i32, i32) = (6, 24);
@@ -39,13 +40,37 @@ struct PatchWithHeader {
     patch: Patch,
 }
 
-fn hash_file(filename: &str) -> Result<()> {
+struct MappedFileIn {
+    mmap: Option<memmap::Mmap>,
+}
+
+impl Deref for MappedFileIn {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        match &self.mmap {
+            Some(mmap) => &mmap,
+            None => &[],
+        }
+    }
+}
+
+fn mmap_file_in(filename: &str) -> Result<MappedFileIn> {
     let file = File::open(filename).context("Can't open input file")?;
-    let mmap = unsafe {
-        MmapOptions::new()
-            .map(&file)
-            .context("Can't memory map input file")?
-    };
+    match file.metadata()?.len() {
+        0 => Ok(MappedFileIn { mmap: None }),
+        _ => {
+            let mmap = unsafe {
+                MmapOptions::new()
+                    .map(&file)
+                    .context("Can't memory map input file")?
+            };
+            Ok(MappedFileIn { mmap: Some(mmap) })
+        }
+    }
+}
+
+fn hash_file(filename: &str) -> Result<()> {
+    let mmap = mmap_file_in(filename)?;
     println!("File size {}", mmap.len());
 
     let time_begin_blake3 = Instant::now();
@@ -101,24 +126,14 @@ fn diff_files(
     block_size: usize,
     compression_level: i32,
 ) -> Result<()> {
-    let base_file = File::open(base_filename).context("Can't open BASE input file")?;
-    let base_mmap = unsafe {
-        MmapOptions::new()
-            .map(&base_file)
-            .context("Can't memory map input file")?
-    };
+    let base_mmap = mmap_file_in(base_filename).context("Can't open BASE input file")?;
     println!(
         "Base size: {:.2} MB ({} bytes)",
         size_mb(base_mmap.len()),
         base_mmap.len()
     );
 
-    let other_file = File::open(other_filename).context("Can't open OTHER input file")?;
-    let other_mmap = unsafe {
-        MmapOptions::new()
-            .map(&other_file)
-            .context("Can't memory map input file")?
-    };
+    let other_mmap = mmap_file_in(other_filename).context("Can't open OTHER input file")?;
     println!(
         "Other size: {:.2} MB ({} bytes)",
         size_mb(other_mmap.len()),
@@ -212,18 +227,8 @@ fn patch_file(
     patch_filename: &str,
     output_filename: Option<&str>,
 ) -> Result<()> {
-    let base_file = File::open(base_filename).context("Can't open BASE file")?;
-    let base_mmap = unsafe {
-        MmapOptions::new()
-            .map(&base_file)
-            .context("Can't memory map input file")?
-    };
-    let patch_file = File::open(patch_filename).context("Can't open PATCH file")?;
-    let patch_mmap = unsafe {
-        MmapOptions::new()
-            .map(&patch_file)
-            .context("Can't memory map patch file")?
-    };
+    let base_mmap = mmap_file_in(base_filename).context("Can't open BASE file")?;
+    let patch_mmap = mmap_file_in(patch_filename).context("Can't open PATCH file")?;
     let patch_decompressed = decompress(&patch_mmap).context("Could not decompress patch file")?;
     let patch_with_header: PatchWithHeader =
         bincode::deserialize(&patch_decompressed).context("Could not deserialize patch file")?;
